@@ -5,7 +5,7 @@ from pathlib import Path
 from threading import Thread
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -13,6 +13,7 @@ from app.audio.analysis import create_visualizations
 from app.audio.recorder import RecordingError, record_until_silence, save_wav
 from app.config import settings
 from app.conversations.store import ConversationStore
+from app.web.export import export_conversation
 from app.llm.ollama import LLMError
 from app.llm.service import LLMService
 from app.memory.service import MemoryService
@@ -65,12 +66,35 @@ class ConversationRename(BaseModel):
     title: str
 
 
+class TextTurn(BaseModel):
+    text: str
+
+
 def _stores() -> tuple[ConversationStore, MemoryStore]:
     return ConversationStore(settings.database_path), MemoryStore(settings.database_path)
 
 
 def _recording_directory() -> Path:
     return settings.recordings_dir / datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def _create_and_play_speech(response: str, message_id: str, output_directory: Path | None = None) -> str | None:
+    """Save and play a response without delaying the browser for playback."""
+    if not settings.tts_enabled:
+        return None
+    try:
+        speech = TextToSpeechService().create_speech(
+            response,
+            (output_directory or _recording_directory()) / "voca_response.wav",
+            voice_id=settings.tts_voice_id,
+            rate=settings.tts_rate,
+        )
+        Thread(target=WindowsSapiTTSProvider.play, args=(speech.path,), daemon=True).start()
+        conversations, _ = _stores()
+        conversations.update_message_audio(message_id, str(speech.path))
+        return str(speech.path)
+    except (TextToSpeechError, ValueError, FileNotFoundError) as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 
 @app.get("/")
@@ -126,6 +150,33 @@ def rename_conversation(conversation_id: str, payload: ConversationRename) -> di
     return renamed.__dict__ if renamed else {}
 
 
+@app.delete("/api/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str) -> dict:
+    conversations, _ = _stores()
+    if not conversations.delete_conversation(conversation_id):
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    return {"deleted": True}
+
+
+@app.get("/api/conversations/{conversation_id}/export")
+def export_saved_conversation(conversation_id: str, format: str = "txt") -> Response:
+    conversations, _ = _stores()
+    conversation = conversations.get_conversation(conversation_id)
+    if conversation is None:
+        raise HTTPException(status_code=404, detail="Conversation not found.")
+    try:
+        content, media_type, filename = export_conversation(
+            conversation, conversations.messages(conversation_id), format
+        )
+    except (RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.get("/api/memories")
 def list_memories() -> dict:
     _, memories = _stores()
@@ -175,6 +226,49 @@ def search(query: str) -> dict:
     return {"indexed": indexed, "results": [result.__dict__ for result in results]}
 
 
+@app.post("/api/text-turn")
+def text_turn(payload: TextTurn) -> dict:
+    """Run a typed message through the same private history, LLM, and speech flow."""
+    user_text = payload.text.strip()
+    if not user_text:
+        raise HTTPException(status_code=400, detail="Type a message before sending it.")
+    conversations, memories = _stores()
+    conversation = conversations.get_active_conversation()
+    if conversation.title == "New conversation":
+        conversations.update_title(conversation.id, user_text[:60])
+    conversations.add_message(conversation.id, "user", user_text)
+    MemoryService(memories).consider_user_message(user_text)
+    history = [
+        {"role": message.role, "content": message.content}
+        for message in conversations.messages(conversation.id, limit=12)
+    ]
+    try:
+        response = _llm.respond(
+            user_text,
+            history=history,
+            memories=[memory.content for memory in memories.list(limit=12)] if memories.is_enabled() else [],
+        )
+    except (LLMError, ValueError) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+
+    assistant_message = conversations.add_message(conversation.id, "assistant", response)
+    speech_path = _create_and_play_speech(response, assistant_message.id)
+    return {"response": response, "audio_path": speech_path}
+
+
+@app.post("/api/messages/{message_id}/play")
+def replay_message(message_id: str) -> dict:
+    conversations, _ = _stores()
+    message = conversations.get_message(message_id)
+    if message is None or not message.audio_path:
+        raise HTTPException(status_code=404, detail="No saved audio is available for this response.")
+    audio_path = Path(message.audio_path)
+    if not audio_path.is_file():
+        raise HTTPException(status_code=404, detail="The saved audio file is no longer available.")
+    Thread(target=WindowsSapiTTSProvider.play, args=(audio_path,), daemon=True).start()
+    return {"playing": True}
+
+
 @app.post("/api/voice-turn")
 def voice_turn() -> dict:
     """Run the existing microphone → STT → local LLM → TTS pipeline."""
@@ -219,21 +313,7 @@ def voice_turn() -> dict:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
     assistant_message = conversations.add_message(conversation.id, "assistant", response)
-    speech_path: str | None = None
-    if settings.tts_enabled:
-        try:
-            speech = TextToSpeechService().create_speech(
-                response,
-                output_directory / "voca_response.wav",
-                voice_id=settings.tts_voice_id,
-                rate=settings.tts_rate,
-            )
-            # Do not make the browser wait while the answer is playing.
-            Thread(target=WindowsSapiTTSProvider.play, args=(speech.path,), daemon=True).start()
-            conversations.update_message_audio(assistant_message.id, str(speech.path))
-            speech_path = str(speech.path)
-        except (TextToSpeechError, ValueError, FileNotFoundError) as error:
-            raise HTTPException(status_code=500, detail=str(error)) from error
+    speech_path = _create_and_play_speech(response, assistant_message.id, output_directory)
 
     return {
         "transcript": transcription.text,

@@ -23,7 +23,8 @@
         <div class="section-label">CONVERSATIONS</div>
         <nav id="conversationList" class="conversation-list"></nav>
         <div class="sidebar-footer">
-          <span class="local-dot"></span><span><strong>Private & local</strong></span>
+          <span class="local-dot"></span
+          ><span><strong>Private & local</strong></span>
         </div>
       </aside>
 
@@ -42,9 +43,18 @@
               </button>
             </div>
           </div>
-          <button id="showMemory" class="quiet-button">
-            <span>Memory</span><small>Local</small>
-          </button>
+          <div class="top-actions">
+            <details class="export-menu">
+              <summary>Export</summary>
+              <div class="export-options">
+                <a id="exportText" download>Text (.txt)</a>
+                <a id="exportPdf" download>PDF</a>
+              </div>
+            </details>
+            <button id="showMemory" class="quiet-button">
+              <span>Memory</span><small>Local</small>
+            </button>
+          </div>
         </header>
         <div id="chat" class="chat">
           <div class="empty-state">
@@ -59,6 +69,15 @@
             </div>
           </div>
         </div>
+        <form id="textChatForm" class="text-chat" autocomplete="off">
+          <input
+            id="textChatInput"
+            maxlength="2000"
+            placeholder="Type a message to VOCA..."
+            aria-label="Type a message to VOCA"
+          />
+          <button type="submit">Send</button>
+        </form>
         <footer class="voice-dock">
           <div class="voice-status">
             <span class="status-dot"></span
@@ -119,6 +138,20 @@
           <button id="cancelRename" type="button" class="dialog-cancel">
             Cancel</button
           ><button type="submit" class="dialog-save">Save name</button>
+        </div>
+      </form>
+    </dialog>
+    <dialog id="deleteDialog" class="delete-dialog">
+      <form id="deleteForm" method="dialog">
+        <p class="eyebrow">DELETE CONVERSATION</p>
+        <h2>Delete this conversation?</h2>
+        <p>
+          This permanently removes <strong id="deleteConversationName">this conversation</strong>
+          and its messages from local history.
+        </p>
+        <div class="dialog-actions">
+          <button id="cancelDelete" type="button" class="dialog-cancel">Keep it</button>
+          <button type="submit" class="dialog-delete">Delete conversation</button>
         </div>
       </form>
     </dialog>

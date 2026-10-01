@@ -110,6 +110,21 @@ class ConversationStore:
                 (cleaned_title, _timestamp(), conversation_id),
             )
 
+    def delete_conversation(self, conversation_id: str) -> bool:
+        """Delete a conversation and its saved messages from the local database."""
+        with self._connect() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM conversations WHERE id = ?", (conversation_id,)
+            ).fetchone()
+            if not exists:
+                return False
+            connection.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
+            connection.execute(
+                "DELETE FROM app_state WHERE key = 'active_conversation_id' AND value = ?",
+                (conversation_id,),
+            )
+        return True
+
     def add_message(self, conversation_id: str, role: str, content: str, *, audio_path: str | None = None) -> StoredMessage:
         if role not in {"user", "assistant"}:
             raise ValueError("Message role must be 'user' or 'assistant'.")
@@ -159,6 +174,11 @@ class ConversationStore:
         with self._connect() as connection:
             rows = connection.execute(query, parameters).fetchall()
         return [_message_from_row(row) for row in rows]
+
+    def get_message(self, message_id: str) -> StoredMessage | None:
+        with self._connect() as connection:
+            row = connection.execute("SELECT * FROM messages WHERE id = ?", (message_id,)).fetchone()
+        return _message_from_row(row) if row else None
 
     def update_message_audio(self, message_id: str, audio_path: str) -> None:
         with self._connect() as connection:
