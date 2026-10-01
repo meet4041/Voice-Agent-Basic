@@ -1,0 +1,2 @@
+"""VOCA's application package."""
+

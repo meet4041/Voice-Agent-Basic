@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VOCA — Local Voice Workspace</title>
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23121a2c'/%3E%3Cpath d='M32 12v26M20 26v8a12 12 0 0 0 24 0v-8M32 46v8M23 54h18' stroke='%235eead4' stroke-width='5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">V</span><span>VOCA</span>
+        </div>
+        <button id="newConversation" class="new-chat">
+          <span>＋</span> New conversation
+        </button>
+        <div class="section-label">CONVERSATIONS</div>
+        <nav id="conversationList" class="conversation-list"></nav>
+        <div class="sidebar-footer">
+          <span class="local-dot"></span><span><strong>Private & local</strong></span>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div class="title-copy">
+            <div class="title-row">
+              <h1 id="conversationTitle">New conversation</h1>
+              <button
+                id="renameConversation"
+                class="rename-button"
+                title="Rename this conversation"
+                aria-label="Rename this conversation"
+              >
+                ✎
+              </button>
+            </div>
+          </div>
+          <button id="showMemory" class="quiet-button">
+            <span>Memory</span><small>Local</small>
+          </button>
+        </header>
+        <div id="chat" class="chat">
+          <div class="empty-state">
+            <div class="orb small"><span>⌁</span></div>
+            <p class="eyebrow">VOICE-FIRST ASSISTANT</p>
+            <h2>Ready when you are.</h2>
+            <p>Ask a question, capture an idea, or continue a conversation.</p>
+            <div class="prompt-chips">
+              <button class="prompt-chip">Ask a question</button
+              ><button class="prompt-chip">Capture an idea</button
+              ><button class="prompt-chip">Plan my day</button>
+            </div>
+          </div>
+        </div>
+        <footer class="voice-dock">
+          <div class="voice-status">
+            <span class="status-dot"></span
+            ><span id="voiceStatus">Ready to listen</span>
+          </div>
+          <button
+            id="voiceButton"
+            class="voice-button"
+            aria-label="Start a voice turn"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+              <path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v3M8.5 20h7"></path>
+            </svg>
+          </button>
+          <span class="hint">Tap to speak</span>
+        </footer>
+      </section>
+
+      <aside id="utilityPanel" class="utility-panel">
+        <section class="search-card">
+          <p class="eyebrow">FIND ANYTHING</p>
+          <div class="search-row">
+            <input
+              id="searchInput"
+              placeholder="Search chats and memories"
+            /><button id="searchButton">Search</button>
+          </div>
+          <div id="searchResults" class="search-results"></div>
+        </section>
+        <section id="memoryPanel" class="memory-card hidden">
+          <div class="panel-heading">
+            <h2>Memory</h2>
+            <button id="closeMemory" class="icon-button">×</button>
+          </div>
+          <label class="toggle-row"
+            >Save new memories
+            <input id="memoryToggle" type="checkbox" checked /><span></span
+          ></label>
+          <div class="memory-add">
+            <input id="memoryInput" placeholder="Add a memory" /><button
+              id="addMemory"
+            >
+              Add
+            </button>
+          </div>
+          <div id="memoryList" class="memory-list"></div>
+        </section>
+      </aside>
+    </main>
+    <dialog id="renameDialog" class="rename-dialog">
+      <form id="renameForm" method="dialog">
+        <p class="eyebrow">CONVERSATION SETTINGS</p>
+        <h2>Rename conversation</h2>
+        <label for="renameInput">Conversation name</label>
+        <input id="renameInput" maxlength="80" required />
+        <div class="dialog-actions">
+          <button id="cancelRename" type="button" class="dialog-cancel">
+            Cancel</button
+          ><button type="submit" class="dialog-save">Save name</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
